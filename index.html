@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pipebomb SMP</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: linear-gradient(135deg, #090d16, #111827);
+      color: #f8fafc;
+      text-align: center;
+      padding: 1.5rem;
+    }
+
+    .container {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(16px);
+      padding: 3rem 2rem;
+      border-radius: 24px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      max-width: 600px;
+      width: 100%;
+    }
+
+    .server-title {
+      font-size: 2.5rem;
+      font-weight: 800;
+      letter-spacing: -0.025em;
+      background: linear-gradient(135deg, #f97316, #ef4444);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 0.5rem;
+      user-select: none;
+    }
+
+    .subtitle {
+      font-size: 1rem;
+      color: #94a3b8;
+      margin-bottom: 2.5rem;
+    }
+
+    /* Countdown Styles */
+    .timer {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+    }
+
+    .time-box {
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 1.25rem 0.5rem;
+    }
+
+    .number {
+      font-size: 2.25rem;
+      font-weight: 700;
+      color: #f8fafc;
+      line-height: 1;
+    }
+
+    .label {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: #64748b;
+      margin-top: 0.6rem;
+    }
+
+    /* Server Info Card Styles */
+    .server-info {
+      display: none;
+      animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(34, 197, 94, 0.15);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      padding: 0.4rem 1rem;
+      border-radius: 9999px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      background-color: #22c55e;
+      border-radius: 50%;
+      box-shadow: 0 0 8px #22c55e;
+    }
+
+    .details-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+
+    .field-group {
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 14px;
+      padding: 1rem 1.25rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .field-label {
+      font-size: 0.875rem;
+      color: #94a3b8;
+      font-weight: 500;
+    }
+
+    .field-value {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+
+    .copy-btn {
+      width: 100%;
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      color: #ffffff;
+      border: none;
+      padding: 1rem;
+      border-radius: 14px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      box-shadow: 0 4px 14px rgba(249, 115, 22, 0.3);
+    }
+
+    .copy-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(249, 115, 22, 0.45);
+    }
+
+    .copy-btn:active {
+      transform: translateY(0);
+    }
+
+    .preview-badge {
+      display: none;
+      font-size: 0.75rem;
+      color: #f59e0b;
+      margin-top: 1rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    /* Lockout Screen Overlay */
+    .lockout-screen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background-color: #ffffff;
+      color: #000000;
+      z-index: 999999;
+      font-size: 1.8rem;
+      font-weight: 600;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      padding: 2rem;
+    }
+
+    @media (max-width: 480px) {
+      .timer {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .server-title {
+        font-size: 2rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Full White Screen Lockout Overlay -->
+  <div class="lockout-screen" id="lockoutScreen">
+    Now, wait patiently.
+  </div>
+
+  <div class="container" id="mainContainer">
+    <h1 class="server-title">Pipebomb SMP</h1>
+    <p class="subtitle" id="subtitle">Official Launch Countdown</p>
+
+    <!-- Countdown Display -->
+    <div class="timer" id="timer">
+      <div class="time-box">
+        <div class="number" id="days">00</div>
+        <div class="label">Days</div>
+      </div>
+      <div class="time-box">
+        <div class="number" id="hours">00</div>
+        <div class="label">Hours</div>
+      </div>
+      <div class="time-box">
+        <div class="number" id="minutes">00</div>
+        <div class="label">Minutes</div>
+      </div>
+      <div class="time-box">
+        <div class="number" id="seconds">00</div>
+        <div class="label">Seconds</div>
+      </div>
+    </div>
+
+    <!-- Server Details Display -->
+    <div class="server-info" id="serverInfo">
+      <div class="status-badge">
+        <span class="status-dot"></span> Server is Live
+      </div>
+
+      <div class="details-grid">
+        <div class="field-group">
+          <span class="field-label">Server Address</span>
+          <span class="field-value" id="ipAddress">play4.eternalzero.cloud</span>
+        </div>
+        <div class="field-group">
+          <span class="field-label">Port</span>
+          <span class="field-value" id="portNumber">26379</span>
+        </div>
+      </div>
+
+      <button class="copy-btn" id="copyBtn" onclick="copyAddress()">
+        Copy Server IP & Port
+      </button>
+
+      <div class="preview-badge" id="previewBadge">
+        Preview Mode (Press Shift+S to Exit)
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Target: August 21, 2026 16:00 BST (UTC+1) -> 1787324400000
+    const TARGET_TIMESTAMP = 1787324400000;
+    const serverIP = "play4.eternalzero.cloud";
+    const serverPort = "26379";
+
+    document.getElementById("ipAddress").innerText = serverIP;
+    document.getElementById("portNumber").innerText = serverPort;
+
+    let isPreviewMode = false;
+    let isEventFinished = false;
+    let isTampered = false;
+    let timerInterval = null;
+
+    // Track expected DOM values to avoid false triggers
+    let expectedValues = { days: "", hours: "", minutes: "", seconds: "" };
+
+    // Check 24-hour lockout state on load
+    function checkLockout() {
+      const lockUntil = localStorage.getItem("pipebomb_lockout");
+      if (lockUntil) {
+        const now = Date.now();
+        if (now < parseInt(lockUntil, 10)) {
+          triggerWhiteScreen();
+          return true;
+        } else {
+          localStorage.removeItem("pipebomb_lockout");
+        }
+      }
+      return false;
+    }
+
+    function triggerEasterEgg() {
+      if (isTampered) return;
+      isTampered = true;
+
+      const messages = [
+        "Clever, very clever.",
+        "You thought that would work?",
+        "Just remember one thing.",
+        "I am always 2 steps ahead of you.",
+        "Look at the empty signs.",
+        "You like breaking rules.",
+        "Go through them on a wednesday.",
+        "You have seen too much."
+      ];
+
+      const twentyFourHours = 24 * 60 * 60 * 1000;
+      localStorage.setItem("pipebomb_lockout", (Date.now() + twentyFourHours).toString());
+
+      setTimeout(() => {
+        for (let i = 0; i < messages.length; i++) {
+          alert(messages[i]);
+        }
+        triggerWhiteScreen();
+      }, 50);
+    }
+
+    function triggerWhiteScreen() {
+      document.getElementById("lockoutScreen").style.display = "flex";
+      document.getElementById("mainContainer").style.display = "none";
+    }
+
+    function resetFromLockout() {
+      localStorage.removeItem("pipebomb_lockout");
+      isTampered = false;
+      document.getElementById("lockoutScreen").style.display = "none";
+      document.getElementById("mainContainer").style.display = "block";
+    }
+
+    function calculateExpectedTime() {
+      const now = Date.now();
+      const difference = TARGET_TIMESTAMP - now;
+
+      if (difference <= 0) {
+        return { days: "00", hours: "00", minutes: "00", seconds: "00", finished: true };
+      }
+
+      const days = String(Math.floor(difference / (1000 * 60 * 60 * 24))).padStart(2, '0');
+      const hours = String(Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))).padStart(2, '0');
+      const minutes = String(Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60))).padStart(2, '0');
+      const seconds = String(Math.floor((difference % (1000 * 60)) / 1000)).padStart(2, '0');
+
+      return { days, hours, minutes, seconds, finished: false };
+    }
+
+    // Verify DOM state against accurate time calculation
+    function verifyDOMIntegrity() {
+      if (isPreviewMode || isEventFinished || isTampered) return;
+
+      const currentDOM = {
+        days: document.getElementById("days").innerText.trim(),
+        hours: document.getElementById("hours").innerText.trim(),
+        minutes: document.getElementById("minutes").innerText.trim(),
+        seconds: document.getElementById("seconds").innerText.trim()
+      };
+
+      // Check against stored legitimate values
+      const mismatchWithExpected = 
+        currentDOM.days !== expectedValues.days ||
+        currentDOM.hours !== expectedValues.hours ||
+        currentDOM.minutes !== expectedValues.minutes ||
+        currentDOM.seconds !== expectedValues.seconds;
+
+      if (mismatchWithExpected) {
+        // Double-check against real time to confirm genuine tampering
+        const real = calculateExpectedTime();
+        if (
+          currentDOM.days !== real.days ||
+          currentDOM.hours !== real.hours ||
+          currentDOM.minutes !== real.minutes ||
+          currentDOM.seconds !== real.seconds
+        ) {
+          triggerEasterEgg();
+        }
+      }
+    }
+
+    function updateTimer() {
+      if (isPreviewMode || isTampered) return;
+
+      const real = calculateExpectedTime();
+
+      if (real.finished) {
+        isEventFinished = true;
+        showServerInfo(false);
+        if (timerInterval) clearInterval(timerInterval);
+        return;
+      }
+
+      // Store valid values
+      expectedValues = {
+        days: real.days,
+        hours: real.hours,
+        minutes: real.minutes,
+        seconds: real.seconds
+      };
+
+      // Update DOM
+      document.getElementById("days").innerText = real.days;
+      document.getElementById("hours").innerText = real.hours;
+      document.getElementById("minutes").innerText = real.minutes;
+      document.getElementById("seconds").innerText = real.seconds;
+    }
+
+    function showServerInfo(isPreview) {
+      document.getElementById("timer").style.display = "none";
+      document.getElementById("subtitle").innerText = isPreview ? "Server Details Preview" : "Welcome to the Server!";
+      document.getElementById("serverInfo").style.display = "block";
+      document.getElementById("previewBadge").style.display = isPreview ? "block" : "none";
+    }
+
+    function showCountdown() {
+      document.getElementById("serverInfo").style.display = "none";
+      document.getElementById("subtitle").innerText = "Official Launch Countdown";
+      document.getElementById("timer").style.display = "grid";
+      updateTimer();
+    }
+
+    function togglePreviewMode() {
+      if (document.getElementById("lockoutScreen").style.display === "flex" || isTampered) {
+        resetFromLockout();
+        isPreviewMode = true;
+        showServerInfo(true);
+        return;
+      }
+
+      if (isEventFinished) return;
+
+      isPreviewMode = !isPreviewMode;
+      if (isPreviewMode) {
+        showServerInfo(true);
+      } else {
+        showCountdown();
+      }
+    }
+
+    // Master Override & Preview Toggle (Shift + S)
+    document.addEventListener("keydown", (e) => {
+      if (e.shiftKey && (e.key === "S" || e.key === "s")) {
+        togglePreviewMode();
+      }
+    });
+
+    function copyAddress() {
+      const fullAddress = `${serverIP}:${serverPort}`;
+      navigator.clipboard.writeText(fullAddress).then(() => {
+        const btn = document.getElementById("copyBtn");
+        btn.innerText = "Copied to Clipboard! ✓";
+        btn.style.background = "linear-gradient(135deg, #22c55e, #16a34a)";
+        
+        setTimeout(() => {
+          btn.innerText = "Copy Server IP & Port";
+          btn.style.background = "linear-gradient(135deg, #f97316, #ea580c)";
+        }, 2500);
+      });
+    }
+
+    if (!checkLockout()) {
+      updateTimer();
+      timerInterval = setInterval(updateTimer, 1000);
+      
+      // Verification loop checking every 250ms for unauthorized edits
+      setInterval(verifyDOMIntegrity, 250);
+    }
+  </script>
+
+</body>
+</html>
